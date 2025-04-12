@@ -1,0 +1,49 @@
+name: Build & Deploy Flask App
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Build Docker & Deploy to EKS
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REPO: ${{ secrets.ECR_REPO }}
+      CLUSTER_NAME: ${{ secrets.EKS_CLUSTER }}
+      NAMESPACE: ${{ secrets.K8S_NAMESPACE }}
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, tag, and push Docker image
+      run: |
+        docker build -t $ECR_REPO:$IMAGE_TAG .
+        docker push $ECR_REPO:$IMAGE_TAG
+
+    - name: Update kubeconfig for EKS
+      run: |
+        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
+    - name: Helm upgrade (or install)
+      run: |
+        helm upgrade --install flask-app ./flask-app-chart \
+          --namespace $NAMESPACE \
+          --set image.repository=$ECR_REPO \
+          --set image.tag=$IMAGE_TAG \
+          --set service.type=LoadBalancer
