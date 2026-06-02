@@ -6,17 +6,15 @@ on:
 
 jobs:
   deploy:
-    name: Build Docker & Deploy to Kubeadm
+    name: Build Docker & Deploy to EKS
     runs-on: ubuntu-latest
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       ECR_REPO: ${{ secrets.ECR_REPO }}
+      CLUSTER_NAME: ${{ secrets.EKS_CLUSTER }}
       NAMESPACE: ${{ secrets.K8S_NAMESPACE }}
       IMAGE_TAG: ${{ github.sha }}
-      # Nuove variabili per il cluster EC2 personale
-      K8S_SERVER: https://98.92.7.200:6443
-      K8S_TOKEN: ${{ secrets.KUBEADM_TOKEN }}
 
     steps:
     - name: Checkout code
@@ -38,26 +36,14 @@ jobs:
         docker build -t $ECR_REPO:$IMAGE_TAG .
         docker push $ECR_REPO:$IMAGE_TAG
 
-    # SOSTITUITO: Non usiamo più "aws eks update-kubeconfig". 
-    # Generiamo un kubeconfig manuale che usa il token e salta i controlli TLS (--insecure-skip-tls-verify)
-    - name: Set up Kubeconfig for Kubeadm EC2
+    - name: Update kubeconfig for EKS
       run: |
-        mkdir -p ~/.kube
-        kubectl config set-cluster kubeadm-cluster --server=${{ env.K8S_SERVER }} --insecure-skip-tls-verify=true
-        kubectl config set-credentials github-actions-user --token=${{ env.K8S_TOKEN }}
-        kubectl config set-context kubeadm-context --cluster=kubeadm-cluster --user=github-actions-user
-        kubectl config use-context kubeadm-context
+        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
 
-    # MODIFICATO: Cambiato service.type da LoadBalancer a NodePort per farlo funzionare su EC2 standard
-    - name: Helm upgrade (or install)
-      run: |
     - name: Helm upgrade (or install)
       run: |
         helm upgrade --install flask-app ./flask-app-chart \
           --namespace $NAMESPACE \
-          --create-namespace \
           --set image.repository=$ECR_REPO \
           --set image.tag=$IMAGE_TAG \
-          --set service.type=NodePort \
-          --set imagePullSecrets.name=regcred
-
+          --set service.type=LoadBalancer
