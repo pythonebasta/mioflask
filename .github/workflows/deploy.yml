@@ -2,7 +2,8 @@ name: Build & Deploy Flask App
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   deploy:
@@ -16,53 +17,53 @@ jobs:
       IMAGE_TAG: ${{ github.sha }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build, tag, and push Docker image
-      run: |
-        docker build -t $ECR_REPO:$IMAGE_TAG .
-        docker push $ECR_REPO:$IMAGE_TAG
+      - name: Build, tag, and push Docker image
+        run: |
+          docker build -t $ECR_REPO:$IMAGE_TAG .
+          docker push $ECR_REPO:$IMAGE_TAG
 
-    - name: Set up Kubeconfig for Kubeadm EC2
-      run: |
-        mkdir -p ~/.kube
-        kubectl config set-cluster kubeadm-cluster --server=https://98.92.7.200:6443 --insecure-skip-tls-verify=true
-        kubectl config set-credentials github-actions-user --token=${{ secrets.KUBEADM_TOKEN }}
-        kubectl config set-context kubeadm-context --cluster=kubeadm-cluster --user=github-actions-user
-        kubectl config use-context kubeadm-context
+      - name: Set up Kubeconfig for Kubeadm EC2
+        run: |
+          mkdir -p ~/.kube
+          kubectl config set-cluster kubeadm-cluster --server=https://98.92.7.200:6443 --insecure-skip-tls-verify=true
+          kubectl config set-credentials github-actions-user --token=${{ secrets.KUBEADM_TOKEN }}
+          kubectl config set-context kubeadm-context --cluster=kubeadm-cluster --user=github-actions-user
+          kubectl config use-context kubeadm-context
 
-    - name: Prepare Cluster and Deploy with Helm
-      run: |
-        echo "Creazione automatica del namespace..."
-        kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-        
-        echo "Recupero credenziali AWS ECR..."
-        TOKEN=$(aws ecr get-login-password --region ${{ env.AWS_REGION }})
-        
-        echo "Creazione del Secret per scaricare l'immagine..."
-        kubectl create secret docker-registry regcred \
-          --docker-server=://amazonaws.com \
-          --docker-username=AWS \
-          --docker-password=$TOKEN \
-          --namespace ${{ env.NAMESPACE }} \
-          --dry-run=client -o yaml | kubectl apply -f -
+      - name: Prepare Cluster and Deploy with Helm
+        run: |
+          echo "Creazione automatica del namespace..."
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
           
-        echo "Avvio del deploy con Helm..."
-        helm upgrade --install flask-app ./flask-app-chart \
-          --namespace ${{ env.NAMESPACE }} \
-          --set image.repository=$ECR_REPO \
-          --set image.tag=$IMAGE_TAG \
-          --set service.type=NodePort \
-          --set imagePullSecrets.name=regcred
+          echo "Recupero credenziali AWS ECR..."
+          TOKEN=$(aws ecr get-login-password --region ${{ env.AWS_REGION }})
+          
+          echo "Creazione del Secret per scaricare l'immagine..."
+          kubectl create secret docker-registry regcred \
+            --docker-server=://amazonaws.com \
+            --docker-username=AWS \
+            --docker-password=$TOKEN \
+            --namespace ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+            
+          echo "Avvio del deploy con Helm..."
+          helm upgrade --install flask-app ./flask-app-chart \
+            --namespace ${{ env.NAMESPACE }} \
+            --set image.repository=$ECR_REPO \
+            --set image.tag=$IMAGE_TAG \
+            --set service.type=NodePort \
+            --set imagePullSecrets.name=regcred
