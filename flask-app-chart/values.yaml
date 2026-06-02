@@ -9,7 +9,7 @@ replicaCount: 1
 image:
   repository: 478408401622.dkr.ecr.us-east-1.amazonaws.com/flask-microservice
   pullPolicy: Always
-  tag: "88249be13d817d3199dd30723092071e651718d5"
+  tag: "5a82cbfcdcf015cb54469543476f63e81303f92b"
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets:
