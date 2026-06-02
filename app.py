@@ -6,7 +6,7 @@ metrics = PrometheusMetrics(app)
 
 @app.route("/welcome")
 def welcome():
-    return jsonify(message="Ah però sei su questo portale!")
+    return jsonify(message="Welcome!")
     #return "Benvenuto!"
 
 if __name__ == "__main__":
