@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    name: Build Docker & Deploy to Kubeadm
+    name: Build Docker & Update Git for ArgoCD
     runs-on: ubuntu-latest
 
     env:
@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          # Permette a GitHub Actions di fare il push delle modifiche sul repository
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -36,37 +39,23 @@ jobs:
           docker build -t $ECR_REPO:$IMAGE_TAG .
           docker push $ECR_REPO:$IMAGE_TAG
 
-      - name: Set up Kubeconfig for Kubeadm EC2
+      - name: Update Helm Chart Values for ArgoCD
         run: |
-          mkdir -p ~/.kube
-          kubectl config set-cluster kubeadm-cluster --server=https://98.92.7.200:6443 --insecure-skip-tls-verify=true
-          kubectl config set-credentials github-actions-user --token=${{ secrets.KUBEADM_TOKEN }}
-          kubectl config set-context kubeadm-context --cluster=kubeadm-cluster --user=github-actions-user
-          kubectl config use-context kubeadm-context
+          echo "Aggiornamento dinamico del tag immagine nel values.yaml..."
+          
+          # Installa yq (tool per modificare i file YAML da terminale)
+          sudo wget https://github.com -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+          
+          # Sovrascrive il valore del tag nel file values.yaml con il nuovo github.sha
+          yq -i '.image.tag = json .IMAGE_TAG' flask-app-chart/values.yaml
 
-      - name: Prepare Cluster and Deploy with Helm
+      - name: Commit and Push changes back to Git
         run: |
-          echo "Creazione automatica del namespace..."
-          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@://github.com"
           
-          echo "Recupero registro ECR e Token..."
-          TOKEN=$(aws ecr get-login-password --region ${{ env.AWS_REGION }})
-          # Estrae l'URL del registro (es. 478408401622.dkr.ecr.us-east-1.amazonaws.com) direttamente dalla variabile ECR_REPO
-          ECR_REGISTRY=$(echo "$ECR_REPO" | cut -d'/' -f1)
+          git add flask-app-chart/values.yaml
           
-          echo "Creazione del Secret per scaricare l'immagine..."
-          kubectl create secret docker-registry regcred \
-            --docker-server=$ECR_REGISTRY \
-            --docker-username=AWS \
-            --docker-password=$TOKEN \
-            --namespace ${{ env.NAMESPACE }} \
-            --dry-run=client -o yaml | kubectl apply -f -
-            
-          echo "Avvio del deploy con Helm..."
-          helm upgrade --install flask-app ./flask-app-chart \
-            --namespace ${{ env.NAMESPACE }} \
-            --set image.repository=$ECR_REPO \
-            --set image.tag=$IMAGE_TAG \
-            --set image.pullPolicy=Always \
-            --set service.type=NodePort \
-            --set "imagePullSecrets[0].name=regcred"
+          # Esegue il commit solo se il file values.yaml è effettivamente cambiato
+          git diff-index --quiet HEAD || git commit -m "chore: update image tag to $IMAGE_TAG [skip ci]"
+          git push origin main
