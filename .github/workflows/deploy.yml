@@ -20,7 +20,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          # Permette a GitHub Actions di fare il push delle modifiche sul repository
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS credentials
@@ -39,20 +38,19 @@ jobs:
           docker build -t $ECR_REPO:$IMAGE_TAG .
           docker push $ECR_REPO:$IMAGE_TAG
 
+      - name: Set up yq
+        uses: chrisdickinson/setup-yq@v1.0.1
+
       - name: Update Helm Chart Values for ArgoCD
         run: |
           echo "Aggiornamento dinamico del tag immagine nel values.yaml..."
-          
-          # Installa yq (tool per modificare i file YAML da terminale)
-          sudo wget https://github.com -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
-          
-          # Sovrascrive il valore del tag nel file values.yaml con il nuovo github.sha
-          yq -i '.image.tag = json .IMAGE_TAG' flask-app-chart/values.yaml
+          # Modifica in modo sicuro la proprietà image.tag con il valore dell'ID del commit git
+          yq -i ".image.tag = \"${{ env.IMAGE_TAG }}\"" flask-app-chart/values.yaml
 
       - name: Commit and Push changes back to Git
         run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@://github.com"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
           git add flask-app-chart/values.yaml
           
