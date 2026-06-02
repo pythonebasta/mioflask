@@ -49,12 +49,14 @@ jobs:
           echo "Creazione automatica del namespace..."
           kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
           
-          echo "Recupero credenziali AWS ECR..."
+          echo "Recupero registro ECR e Token..."
           TOKEN=$(aws ecr get-login-password --region ${{ env.AWS_REGION }})
+          # Estrae l'URL del registro (es. 478408401622.dkr.ecr.us-east-1.amazonaws.com) direttamente dalla variabile ECR_REPO
+          ECR_REGISTRY=$(echo "$ECR_REPO" | cut -d'/' -f1)
           
           echo "Creazione del Secret per scaricare l'immagine..."
           kubectl create secret docker-registry regcred \
-            --docker-server=://amazonaws.com \
+            --docker-server=$ECR_REGISTRY \
             --docker-username=AWS \
             --docker-password=$TOKEN \
             --namespace ${{ env.NAMESPACE }} \
@@ -65,7 +67,6 @@ jobs:
             --namespace ${{ env.NAMESPACE }} \
             --set image.repository=$ECR_REPO \
             --set image.tag=$IMAGE_TAG \
+            --set image.pullPolicy=Always \
             --set service.type=NodePort \
             --set "imagePullSecrets[0].name=regcred"
-
-
