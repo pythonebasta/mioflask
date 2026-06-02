@@ -11,6 +11,7 @@ image:
   pullPolicy: Always
   tag: "57ca47209ba7dc6be356c6a52d7c0e7d79a558d3"
 
+
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets:
   - name: regcred
