@@ -66,4 +66,5 @@ jobs:
             --set image.repository=$ECR_REPO \
             --set image.tag=$IMAGE_TAG \
             --set service.type=NodePort \
-            --set imagePullSecrets.name=regcred
+            --set "imagePullSecrets[0].name=regcred"
+
