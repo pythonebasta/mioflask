@@ -45,7 +45,9 @@ jobs:
       - name: Update Helm Chart Values for ArgoCD
         run: |
           echo "Aggiornamento dinamico del tag immagine nel values.yaml..."
-          sed -i "s/tag:.*/tag: \"${{ env.IMAGE_TAG }}\"/g" flask-app-chart/values.yaml
+          # Cerca la riga del tag e sostituisce il valore mantenendo i giusti spazi dello YAML
+          sed -i '/repository:/,/tag:/ {s/\(tag:\).*/\1 "'"${{ env.IMAGE_TAG }}"'"/}' flask-app-chart/values.yaml
+
 
       - name: Commit and Push changes back to Git
         run: |
