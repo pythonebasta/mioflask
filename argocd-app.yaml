@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flask-app
+  namespace: argocd # L'oggetto applicazione va dentro il namespace di ArgoCD
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com'
+    targetRevision: HEAD # Traccia l'ultimo commit del branch principale
+    path: flask-app-chart # La cartella dentro Git dove c'è il tuo file values.yaml
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: 'https://default.svc' # Significa "installa in questo stesso cluster dove si trova ArgoCD"
+    namespace: flask-microservice # Il namespace di destinazione per l'app Flask
+  syncPolicy:
+    automated: # Attiva la sincronizzazione automatica a caldo
+      prune: true # Elimina le risorse vecchie se le cancelli da Git
+      selfHeal: true # Se modifichi qualcosa a mano su Lens, ArgoCD lo corregge riprendendo Git
