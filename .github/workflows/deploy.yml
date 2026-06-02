@@ -51,8 +51,13 @@ jobs:
     # MODIFICATO: Cambiato service.type da LoadBalancer a NodePort per farlo funzionare su EC2 standard
     - name: Helm upgrade (or install)
       run: |
+    - name: Helm upgrade (or install)
+      run: |
         helm upgrade --install flask-app ./flask-app-chart \
           --namespace $NAMESPACE \
+          --create-namespace \
           --set image.repository=$ECR_REPO \
           --set image.tag=$IMAGE_TAG \
-          --set service.type=NodePort
+          --set service.type=NodePort \
+          --set imagePullSecrets.name=regcred
+
